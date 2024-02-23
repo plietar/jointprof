@@ -13,6 +13,7 @@ struct ProfilerDaisyChain::Impl {
   struct sigaction initact;
   struct sigaction oldact;
   std::ofstream ofs;
+  pthread_t profiled_thread;
 
   void start(const std::string& path);
   void stop();
@@ -68,6 +69,8 @@ void ProfilerDaisyChain::Impl::start(const std::string& path) {
   myact.sa_flags = SA_SIGINFO;
   sigaction(SIGPROF, &myact, NULL);
 
+  profiled_thread = pthread_self();
+
   static_impl = this;
 }
 
@@ -103,7 +106,9 @@ void ProfilerDaisyChain::Impl::handler(int signal, siginfo_t* info, void* uconte
   if (signal != SIGPROF)
     return;
 
-  write_stack_trace(reinterpret_cast<const ucontext_t*>(ucontext));
+  if (pthread_equal(pthread_self(), profiled_thread)) { 
+    write_stack_trace(reinterpret_cast<const ucontext_t*>(ucontext));
+  }
 
   struct sigaction myact;
   sigaction(SIGPROF, NULL, &myact);
@@ -153,7 +158,7 @@ void ProfilerDaisyChain::Impl::write_header() {
 
 
 void ProfilerDaisyChain::Impl::write_stack_trace(const ucontext_t* signal_ucontext) {
-  const int kMaxStackDepth = 64;
+  const int kMaxStackDepth = 512;
   void* stack[kMaxStackDepth + 2];
   size_t stack_start = 2;
 

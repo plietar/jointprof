@@ -11,5 +11,6 @@
 # FIXME: Examples
 joint_pprof <- function(expr, ...) {
   pprof <- comingle_pprof(expr)
+  message("Combined profile: ", pprof)
   proffer::serve_pprof(pprof, ...)
 }

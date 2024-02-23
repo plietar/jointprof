@@ -1,5 +1,6 @@
 combine_profiles <- function(prof_path, out_path) {
   ds_rprof <- profile::read_rprof(out_path, version = "1.0")
+  print(out_path)
 
   proto_path <- tempfile("jointprof", fileext = ".pb.gz")
   system2(
@@ -90,15 +91,7 @@ patch_locations <- function(rprof_locations, pprof_locations, locations_flat) {
   . <- tibble::as_tibble(., rownames = NULL)
   rprof_locations_full <- .
   stopifnot(rprof_locations$location_id == rprof_locations_full$location_id)
-
-  call_idx <- which(rprof_locations_full$system_name == ".Call")
-
-  if (length(call_idx) == 0) {
-    return(rprof_locations)
-  }
-
-  call_idx <- call_idx[[1]]
-
+  
   . <- pprof_locations
   . <- tibble::rowid_to_column(., "pprof_id")
   . <- merge(., locations_flat, by = "location_id", sort = FALSE)
@@ -106,22 +99,30 @@ patch_locations <- function(rprof_locations, pprof_locations, locations_flat) {
   . <- tibble::as_tibble(., rownames = NULL)
   pprof_locations_full <- .
   stopifnot(pprof_locations$location_id == pprof_locations_full$location_id)
+  
+  exec_names <- c("R_execClosure", "do_eval", "do_recall", "do_dotcall")
+  #exec_names <- c("R_execClosure", "do_eval", "do_recall", "R_DispatchOrEvalSP", "do_dotcall")
+  exec_idx <- which(pprof_locations_full$system_name %in% exec_names)
 
-  eval_idx <- which(pprof_locations_full$system_name == "Rf_eval")
-  if (length(eval_idx) == 0) {
-    eval_idx <- length(pprof_locations_full$system_name)
-  } else {
-    eval_idx <- max(eval_idx[[1L]] - 1L, 1L)
-    if (pprof_locations_full$system_name[[eval_idx]] == "<?>") eval_idx <- eval_idx - 1L
+  result <- NULL
+  past_loc_idx <- nrow(pprof_locations_full)
+
+  n <- min(length(exec_idx), nrow(rprof_locations_full))
+  for (i in seq(n)) {
+    loc_idx <- exec_idx[[length(exec_idx) + 1 - i]]
+    result <- c(
+      rprof_locations_full$location_id[[nrow(rprof_locations_full) + 1 - i]],
+      pprof_locations_full$location_id[rlang::seq2(loc_idx, past_loc_idx)],
+      result)
+    past_loc_idx <- loc_idx - 1
   }
 
-  tibble::tibble(
-    location_id = c(
-      rprof_locations_full$location_id[rlang::seq2(1L, call_idx - 1L)],
-      pprof_locations_full$location_id[rlang::seq2(1L, eval_idx)],
-      rprof_locations_full$location_id[rlang::seq2(call_idx + 1L, nrow(rprof_locations_full))]
-    )
-  )
+  result <- c(
+    rprof_locations_full$location_id[rlang::seq2(1, nrow(rprof_locations_full) - n)],
+    pprof_locations_full$location_id[rlang::seq2(1, past_loc_idx)],
+    result)
+
+  return(tibble::tibble(location_id = result))
 }
 
 prune_ds <- function(ds) {

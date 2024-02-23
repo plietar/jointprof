@@ -11,7 +11,7 @@
 #' @examples
 #' # Returns a path to pprof samples.
 #' comingle_pprof(replicate(1e2, sample.int(1e4)))
-comingle_pprof <- function(expr, pprof = tempfile(), ...) {
+comingle_pprof <- function(expr, pprof = tempfile(fileext=".pb.gz"), ...) {
   rprof <- comingle_rprof(expr, ...)
   on.exit(unlink(rprof))
   proffer::to_pprof(rprof, pprof = pprof)
