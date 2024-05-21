@@ -153,7 +153,7 @@ void ProfilerDaisyChain::Impl::write_header() {
 
 
 void ProfilerDaisyChain::Impl::write_stack_trace(const ucontext_t* signal_ucontext) {
-  const int kMaxStackDepth = 64;
+  const int kMaxStackDepth = 512;
   void* stack[kMaxStackDepth + 2];
   size_t stack_start = 2;
 
